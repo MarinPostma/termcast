@@ -1,5 +1,5 @@
 use std::io; 
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Range};
 
 use crate::layout::Rect;
 use crate::cell::Cell;
@@ -50,11 +50,13 @@ pub struct Terminal<B: Backend> {
     c_row: u16,
     c_col: u16,
     backend: B,
+    scroll_range: Range<usize>,
 }
 
 impl<B: Backend> Terminal<B> {
     pub fn new(rect: Rect, backend: B) -> Terminal<B> {
         Terminal {
+            scroll_range: 1..rect.height as usize,
             buffer: Buffer::new(rect.clone()),
             rect,
             c_style: Style::default(),
@@ -78,6 +80,7 @@ impl<B: Backend> Terminal<B> {
 
     fn move_left(&mut self, n: u16) {
         self.c_col = std::cmp::max(1, self.c_col.saturating_sub(n));
+        println!("here");
     }
 
     fn move_right(&mut self, n: u16) {
@@ -93,9 +96,26 @@ impl<B: Backend> Terminal<B> {
         self.index_of(self.c_col, self.c_row)
     }
 
+    fn delete_lines(&mut self, num: u16) {
+        eprintln!("delete; {}", num);
+        let start = self.scroll_range.start * self.buffer.rect.width as usize;
+        let end = (self.scroll_range.end - 1) * self.buffer.rect.width as usize;
+        self.buffer.cells.drain(start..start + num as usize * self.buffer.rect.width as usize);
+        self.buffer.cells.splice(end..end,
+            (0..num as usize * self.buffer.rect.width as usize).map(|_| Cell::default()));
+    }
+
     fn clear_down(&mut self) {
         let index = self.current_index();
         self.buffer[index..].iter_mut().for_each(|c| { c.reset(); });
+    }
+
+    fn insert_line(&mut self, num: u16) {
+        eprintln!("insert; {}", self.buffer.cells.len());
+        let index = ((self.c_row - 1) * self.buffer.rect.width) as usize;
+        self.buffer.cells.drain(self.buffer.cells.len() - num as usize * self.buffer.rect.width as usize..);
+        self.buffer.cells.splice(index..index,
+            (0.. num * self.buffer.rect.width).map(|_| Cell::default()));
     }
 
     fn clear_line_right(&mut self) {
@@ -205,10 +225,13 @@ impl<B: Backend> Terminal<B> {
 
 
     fn inc_row(&mut self) {
-        if self.c_row == self.rect.height {
+
+        if self.c_row == self.scroll_range.end as u16 {
             //row remains the same but the viewport is shifted up, ie rmove the first line
-            self.buffer.cells.drain(0..self.rect.width as usize);
-            self.buffer.cells.extend((0..self.rect.width).map(|_| Cell::default()));
+            let start = (self.scroll_range.start - 1) * self.rect.width as usize;
+            let end = (self.scroll_range.end - 1) * self.rect.width as usize;
+            self.buffer.cells.drain(start..start + self.rect.width as usize);
+            self.buffer.cells.splice(end..end, (0..self.rect.width).map(|_| Cell::default()));
             //println!("buffer_len: {}", self.buffer.len());
         } else {
             self.c_row += 1;
@@ -285,14 +308,14 @@ impl<B: Backend> vte::Perform for Terminal<B> {
     ///
     /// The `ignore` flag indicates that more than two intermediates arrived and
     /// subsequent characters were ignored.
-    fn hook(&mut self, _params: &[i64], _intermediates: &[u8], _ignore: bool, _action: char) {
-        //println!("hook");
+    fn hook(&mut self, params: &[i64], _intermediates: &[u8], _ignore: bool, action: char) {
+        eprintln!("hook: {}; params: {:?};", action, params);
     }
 
     /// Pass bytes as part of a device control string to the handle chosen in `hook`. C0 controls
     /// will also be passed to the handler.
-    fn put(&mut self, _byte: u8) {
-        //println!("put");
+    fn put(&mut self, byte: u8) {
+        eprintln!("put: {};", byte as char);
     }
 
     /// Called when a device control string is terminated.
@@ -300,12 +323,12 @@ impl<B: Backend> vte::Perform for Terminal<B> {
     /// The previously selected handler should be notified that the DCS has
     /// terminated.
     fn unhook(&mut self) {
-        //println!("unhook");
+        eprintln!("unhook");
     }
 
     /// Dispatch an operating system command.
-    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
-        //println!("osc dispat");
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        eprintln!("osc dispat: {:?}", params);
     }
 
     /// A final character has arrived for a CSI sequence
@@ -324,10 +347,6 @@ impl<B: Backend> vte::Perform for Terminal<B> {
             'h' => (),
             // hide cursor
             'l' => (),
-            // ??
-            'r' => (),
-            // ??
-            't' => (),
             //colors
             'm' => {
                 //println!("params: {:?}, intermediates: {:?}", params, intermediates);
@@ -368,8 +387,14 @@ impl<B: Backend> vte::Perform for Terminal<B> {
                     value => unimplemented!("unimplemented color: {}", value),
                 }
             },
-            // scroll down 1 line
-            'M' => self.inc_row(),
+            // caps lock light on
+            'q' => (),
+            // CSI Ps ; Ps ; Ps t
+            't' => (),
+            // set scroll range
+            'r' => self.scroll_range = params[0] as usize .. params[1] as usize,
+            'M' => self.delete_lines(std::cmp::max(1, params[0]) as u16),
+            'L' => self.insert_line(std::cmp::max(1, params[0]) as u16),
             'H' => {
                 match params.len() {
                     0 | 1 => self.move_cursor(1, 1),
@@ -385,9 +410,8 @@ impl<B: Backend> vte::Perform for Terminal<B> {
                     _ => unimplemented!("J other"),
                 }
             }
-            'q' => (),
             _ => {
-                unimplemented!("{:?} {}", params, action);
+                eprintln!("csi: {:?}; params: {:?}", params, action);
             }
         }
     }
@@ -396,7 +420,7 @@ impl<B: Backend> vte::Perform for Terminal<B> {
     ///
     /// The `ignore` flag indicates that more than two intermediates arrived and
     /// subsequent characters were ignored.
-    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, _byte: u8) {
-        //println!("esc dispatch: {:?}", byte as char);
+    fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
+        eprintln!("esc dispatch: {:?}; params: {:?}", byte as char, intermediates);
     }
 }

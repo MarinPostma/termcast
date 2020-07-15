@@ -28,9 +28,6 @@ use crate::terminal::Terminal;
 use crate::layout::Rect;
 use crate::backends::{Backend, TermionBackend};
 
-
-
-
 #[derive(Default)]
 struct State;
 
