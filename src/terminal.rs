@@ -113,7 +113,9 @@ impl<B: Backend> Terminal<B> {
     fn insert_line(&mut self, num: u16) {
         eprintln!("insert; {}", self.buffer.cells.len());
         let index = ((self.c_row - 1) * self.buffer.rect.width) as usize;
-        self.buffer.cells.drain(self.buffer.cells.len() - num as usize * self.buffer.rect.width as usize..);
+        let end = (self.scroll_range.end - 1) * self.buffer.rect.width as usize;
+
+        self.buffer.cells.drain(end - num as usize * self.buffer.rect.width as usize.. end);
         self.buffer.cells.splice(index..index,
             (0.. num * self.buffer.rect.width).map(|_| Cell::default()));
     }
