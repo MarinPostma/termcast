@@ -13,3 +13,4 @@ nix = "0.17.0"
 termion = "1.5.5"
 bitflags = "1.2.1"
 vte = "0.8.0"
+structopt = { version = "0.3" }

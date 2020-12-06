@@ -23,6 +23,7 @@ use smol::{blocking, reader, writer};
 use std::fs::File;
 use std::os::unix::io::FromRawFd;
 use futures::select;
+use structopt::StructOpt;
 
 use crate::terminal::Terminal;
 use crate::layout::Rect;
@@ -32,6 +33,14 @@ use crate::backends::{Backend, TermionBackend};
 struct State;
 
 ioctl_read_bad!(get_win_size, TIOCGWINSZ, Winsize);
+
+#[derive(StructOpt)]
+enum TermCast {
+    Cast,
+    Watch { 
+        addr: String,
+    },
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let winsize = Winsize { ws_row: 40, ws_col: 80, ws_xpixel: 0,  ws_ypixel: 0 };
