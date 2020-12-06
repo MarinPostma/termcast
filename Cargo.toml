@@ -14,3 +14,4 @@ bitflags = "1.2.1"
 vte = "0.8.0"
 structopt = { version = "0.3" }
 tokio = { version = "0.3.5", features = ["full"] }
+async-trait = "0.1.42"

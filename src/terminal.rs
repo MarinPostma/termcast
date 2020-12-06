@@ -19,10 +19,12 @@ impl Buffer {
             rect,
         }
     }
-    pub fn cells<'a>(&'a self) -> Vec<(u16, u16, &'a Cell)> {
+
+    pub fn cells(&self) -> Vec<(u16, u16, Cell)> {
         self
             .cells
             .iter()
+            .cloned()
             .enumerate()
             .map(|(i, c)| (i as u16 % self.rect.width + 1 + self.rect.x, i as u16 / self.rect.width + 1 + self.rect.y, c))
             .collect()
@@ -129,13 +131,12 @@ impl<B: Backend> Terminal<B> {
         self.buffer[index..index + n].iter_mut().for_each(|c| { c.reset(); });
     }
 
-    pub fn draw(&mut self) -> io::Result<()> {
-        self.backend.hide_cursor()?;
+    pub async fn draw(&mut self) -> io::Result<()> {
+        self.backend.hide_cursor().await?;
         let cells = self.buffer.cells();
-        self.backend.draw(cells.into_iter())?;
-        self.backend.cursor_goto(self.c_col + self.rect.x, self.c_row + self.rect.y)?;
-        self.backend.show_cursor()?;
-        self.backend.flush()?;
+        self.backend.draw(cells.into_iter()).await?;
+        self.backend.cursor_goto(self.c_col + self.rect.x, self.c_row + self.rect.y).await?;
+        self.backend.show_cursor().await?;
         Ok(())
     }
 
@@ -287,8 +288,8 @@ impl<B: Backend> vte::Perform for Terminal<B> {
             b'\t' => { self.make_tab(); },
             // the bell
             0x7 => {
-                self.backend.write(&[7]).unwrap();
-                self.backend.flush().unwrap();
+                //self.backend.write(&[7]).unwrap();
+                //self.backend.flush().unwrap();
             },
             // backspace
             0x8 => self.c_col = self.c_col.saturating_sub(1),
