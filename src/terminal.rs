@@ -80,7 +80,6 @@ impl<B: Backend> Terminal<B> {
 
     fn move_left(&mut self, n: u16) {
         self.c_col = std::cmp::max(1, self.c_col.saturating_sub(n));
-        println!("here");
     }
 
     fn move_right(&mut self, n: u16) {
@@ -97,7 +96,6 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn delete_lines(&mut self, num: u16) {
-        eprintln!("delete; {}", num);
         let start = self.scroll_range.start * self.buffer.rect.width as usize;
         let end = (self.scroll_range.end - 1) * self.buffer.rect.width as usize;
         self.buffer.cells.drain(start..start + num as usize * self.buffer.rect.width as usize);
@@ -111,7 +109,6 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn insert_line(&mut self, num: u16) {
-        eprintln!("insert; {}", self.buffer.cells.len());
         let index = ((self.c_row - 1) * self.buffer.rect.width) as usize;
         let end = (self.scroll_range.end - 1) * self.buffer.rect.width as usize;
 
@@ -310,28 +307,20 @@ impl<B: Backend> vte::Perform for Terminal<B> {
     ///
     /// The `ignore` flag indicates that more than two intermediates arrived and
     /// subsequent characters were ignored.
-    fn hook(&mut self, params: &[i64], _intermediates: &[u8], _ignore: bool, action: char) {
-        eprintln!("hook: {}; params: {:?};", action, params);
-    }
+    fn hook(&mut self, _params: &[i64], _intermediates: &[u8], _ignore: bool, _action: char) { }
 
     /// Pass bytes as part of a device control string to the handle chosen in `hook`. C0 controls
     /// will also be passed to the handler.
-    fn put(&mut self, byte: u8) {
-        eprintln!("put: {};", byte as char);
-    }
+    fn put(&mut self, _byte: u8) { }
 
     /// Called when a device control string is terminated.
     ///
     /// The previously selected handler should be notified that the DCS has
     /// terminated.
-    fn unhook(&mut self) {
-        eprintln!("unhook");
-    }
+    fn unhook(&mut self) { }
 
     /// Dispatch an operating system command.
-    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
-        eprintln!("osc dispat: {:?}", params);
-    }
+    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) { }
 
     /// A final character has arrived for a CSI sequence
     ///
@@ -412,9 +401,7 @@ impl<B: Backend> vte::Perform for Terminal<B> {
                     _ => unimplemented!("J other"),
                 }
             }
-            _ => {
-                eprintln!("csi: {:?}; params: {:?}", params, action);
-            }
+            _ => { }
         }
     }
 
@@ -422,7 +409,5 @@ impl<B: Backend> vte::Perform for Terminal<B> {
     ///
     /// The `ignore` flag indicates that more than two intermediates arrived and
     /// subsequent characters were ignored.
-    fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
-        eprintln!("esc dispatch: {:?}; params: {:?}", byte as char, intermediates);
-    }
+    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, _byte: u8) { }
 }
