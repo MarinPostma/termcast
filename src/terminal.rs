@@ -1,4 +1,4 @@
-use std::io; 
+use std::io;
 use std::ops::{Deref, DerefMut, Range};
 
 use crate::layout::Rect;
@@ -7,41 +7,64 @@ use crate::style::Style;
 use crate::backends::Backend;
 
 struct Buffer {
-    cells: Vec<Cell>,
+    current: Vec<Cell>,
+    previous: Vec<Cell>,
     rect: Rect,
 }
 
 impl Buffer {
 
     pub fn new(rect: Rect) -> Self {
+        let current = vec![Cell::default(); (rect.width * rect.height) as usize];
+        let previous = current.clone();
         Self {
-            cells: vec![Cell::default(); (rect.width * rect.height) as usize],
+            current,
+            previous,
             rect,
         }
     }
 
-    pub fn cells(&self) -> Vec<(u16, u16, Cell)> {
-        self
-            .cells
-            .iter()
-            .cloned()
+    pub fn diff(&mut self) -> impl Iterator<Item = (u16, u16, Cell)> + '_ {
+        let width = self.rect.width;
+        let x = self.rect.x;
+        let y = self.rect.y;
+        std::mem::swap(&mut self.current, &mut self.previous);
+        let previous = &mut self.previous;
+        self.current
+            .iter_mut()
             .enumerate()
-            .map(|(i, c)| (i as u16 % self.rect.width + 1 + self.rect.x, i as u16 / self.rect.width + 1 + self.rect.y, c))
-            .collect()
+            .filter_map(move |(i, c)| {
+                if previous[i] != *c {
+                    *c = previous[i];
+                    Some((i as u16 % width + 1 + x, i as u16 / width + 1 + y, *c))
+                } else {
+                    None
+                }
+            })
     }
+
+    //pub fn cells(&self) -> Vec<(u16, u16, Cell)> {
+        //self
+            //.cells[0]
+            //.iter()
+            //.cloned()
+            //.enumerate()
+            //.map(|(i, c)| (i as u16 % self.rect.width + 1 + self.rect.x, i as u16 / self.rect.width + 1 + self.rect.y, c))
+            //.collect()
+    //}
 }
 
 impl Deref for Buffer {
-    type Target = [Cell];
+    type Target = Vec<Cell>;
 
     fn deref(&self) -> &Self::Target {
-        &self.cells
+        &self.current
     }
 }
 
 impl DerefMut for Buffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.cells
+        &mut self.current
     }
 }
 
@@ -51,7 +74,7 @@ pub struct Terminal<B: Backend> {
     rect: Rect,
     c_row: u16,
     c_col: u16,
-    backend: B,
+    pub backend: B,
     scroll_range: Range<usize>,
 }
 
@@ -100,9 +123,10 @@ impl<B: Backend> Terminal<B> {
     fn delete_lines(&mut self, num: u16) {
         let start = self.scroll_range.start * self.buffer.rect.width as usize;
         let end = (self.scroll_range.end - 1) * self.buffer.rect.width as usize;
-        self.buffer.cells.drain(start..start + num as usize * self.buffer.rect.width as usize);
-        self.buffer.cells.splice(end..end,
-            (0..num as usize * self.buffer.rect.width as usize).map(|_| Cell::default()));
+        let width = self.buffer.rect.width;
+
+        self.buffer.drain(start..start + num as usize * width as usize);
+        self.buffer.splice(end..end, (0..num as usize * width as usize).map(|_| Cell::default()));
     }
 
     fn clear_down(&mut self) {
@@ -113,10 +137,10 @@ impl<B: Backend> Terminal<B> {
     fn insert_line(&mut self, num: u16) {
         let index = ((self.c_row - 1) * self.buffer.rect.width) as usize;
         let end = (self.scroll_range.end - 1) * self.buffer.rect.width as usize;
+        let width = self.buffer.rect.width;
 
-        self.buffer.cells.drain(end - num as usize * self.buffer.rect.width as usize.. end);
-        self.buffer.cells.splice(index..index,
-            (0.. num * self.buffer.rect.width).map(|_| Cell::default()));
+        self.buffer.drain(end - num as usize * width as usize.. end);
+        self.buffer.splice(index..index, (0.. num * width).map(|_| Cell::default()));
     }
 
     fn clear_line_right(&mut self) {
@@ -133,95 +157,96 @@ impl<B: Backend> Terminal<B> {
 
     pub async fn draw(&mut self) -> io::Result<()> {
         self.backend.hide_cursor().await?;
-        let cells = self.buffer.cells();
-        self.backend.draw(cells.into_iter()).await?;
+        let cells = self.buffer.diff();
+        self.backend.draw(cells).await?;
         self.backend.cursor_goto(self.c_col + self.rect.x, self.c_row + self.rect.y).await?;
         self.backend.show_cursor().await?;
+        self.backend.flush().await?;
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn render_borders(&mut self) {
-        // render top
-        for i in 1..=self.rect.width {
-            let index = self.index_of(i as u16, 1);
-            self
-                .buffer
-                .get_mut(index)
-                .expect(&format!("no value at {}", index))
-                .set_symbol('─');
-        }
-        // render bottom
-        for i in 1..=self.rect.width {
-            let index = self.index_of(i as u16, self.rect.height);
-            self
-                .buffer
-                .get_mut(index)
-                .expect(&format!("no value at bottom {}", index))
-                .set_symbol('─');
-        }
-        // render left
-        for i in 1..=self.rect.height {
-            let index = self.index_of(1, i as u16);
-            self
-                .buffer
-                .get_mut(index)
-                .expect(&format!("no value at bottom {}", index))
-                .set_symbol('│');
-        }
-        // render right
-        for i in 1..=self.rect.height {
-            let index = self.index_of(self.rect.width, i as u16);
-            self
-                .buffer
-                .get_mut(index)
-                .expect(&format!("no value at bottom {}", index))
-                .set_symbol('│');
-        }
+    //#[allow(dead_code)]
+    //fn render_borders(&mut self) {
+        //// render top
+        //for i in 1..=self.rect.width {
+            //let index = self.index_of(i as u16, 1);
+            //self
+                //.buffer
+                //.get_mut(index)
+                //.expect(&format!("no value at {}", index))
+                //.set_symbol('─');
+        //}
+        //// render bottom
+        //for i in 1..=self.rect.width {
+            //let index = self.index_of(i as u16, self.rect.height);
+            //self
+                //.buffer
+                //.get_mut(index)
+                //.expect(&format!("no value at bottom {}", index))
+                //.set_symbol('─');
+        //}
+        //// render left
+        //for i in 1..=self.rect.height {
+            //let index = self.index_of(1, i as u16);
+            //self
+                //.buffer
+                //.get_mut(index)
+                //.expect(&format!("no value at bottom {}", index))
+                //.set_symbol('│');
+        //}
+        //// render right
+        //for i in 1..=self.rect.height {
+            //let index = self.index_of(self.rect.width, i as u16);
+            //self
+                //.buffer
+                //.get_mut(index)
+                //.expect(&format!("no value at bottom {}", index))
+                //.set_symbol('│');
+        //}
 
-        // top right
-        let index = self.index_of(1, 1);
-        self
-            .buffer
-            .get_mut(index)
-            .expect(&format!("no value at bottom {}", index))
-            .set_symbol('┌');
-        //
-        // top left
-        let index = self.index_of(self.rect.width, 1);
-        self
-            .buffer
-            .get_mut(index)
-            .expect(&format!("no value at bottom {}", index))
-            .set_symbol('┐');
-        //
-        // bottom right
-        let index = self.index_of(1, self.rect.height);
-        self
-            .buffer
-            .get_mut(index)
-            .expect(&format!("no value at bottom {}", index))
-            .set_symbol('└');
-        //
-        // bottom left
-        let index = self.index_of(self.rect.width, self.rect.height);
-        self
-            .buffer
-            .get_mut(index)
-            .expect(&format!("no value at bottom {}", index))
-            .set_symbol('┘');
+        //// top right
+        //let index = self.index_of(1, 1);
+        //self
+            //.buffer
+            //.get_mut(index)
+            //.expect(&format!("no value at bottom {}", index))
+            //.set_symbol('┌');
+        ////
+        //// top left
+        //let index = self.index_of(self.rect.width, 1);
+        //self
+            //.buffer
+            //.get_mut(index)
+            //.expect(&format!("no value at bottom {}", index))
+            //.set_symbol('┐');
+        ////
+        //// bottom right
+        //let index = self.index_of(1, self.rect.height);
+        //self
+            //.buffer
+            //.get_mut(index)
+            //.expect(&format!("no value at bottom {}", index))
+            //.set_symbol('└');
+        ////
+        //// bottom left
+        //let index = self.index_of(self.rect.width, self.rect.height);
+        //self
+            //.buffer
+            //.get_mut(index)
+            //.expect(&format!("no value at bottom {}", index))
+            //.set_symbol('┘');
 
-        // print title
-        let title = " megaterm 5000 ";
-        for (i, c) in title.chars().enumerate() {
-            let index = self.index_of(i as u16 + 3, 1);
-        self
-            .buffer
-            .get_mut(index)
-            .expect(&format!("no value at bottom {}", index))
-            .set_symbol(c);
-        }
-    }
+        //// print title
+        //let title = " megaterm 5000 ";
+        //for (i, c) in title.chars().enumerate() {
+            //let index = self.index_of(i as u16 + 3, 1);
+        //self
+            //.buffer
+            //.get_mut(index)
+            //.expect(&format!("no value at bottom {}", index))
+            //.set_symbol(c);
+        //}
+    //}
 
 
     fn inc_row(&mut self) {
@@ -230,8 +255,8 @@ impl<B: Backend> Terminal<B> {
             //row remains the same but the viewport is shifted up, ie rmove the first line
             let start = (self.scroll_range.start - 1) * self.rect.width as usize;
             let end = (self.scroll_range.end - 1) * self.rect.width as usize;
-            self.buffer.cells.drain(start..start + self.rect.width as usize);
-            self.buffer.cells.splice(end..end, (0..self.rect.width).map(|_| Cell::default()));
+            self.buffer.drain(start..start + self.rect.width as usize);
+            self.buffer.splice(end..end, (0..self.rect.width).map(|_| Cell::default()));
             //println!("buffer_len: {}", self.buffer.len());
         } else {
             self.c_row += 1;
@@ -249,20 +274,18 @@ impl<B: Backend> Terminal<B> {
         }
     }
 
-    fn current_cell(&mut self) -> Option<&mut Cell> {
+    fn current_cell_mut(&mut self) -> Option<&mut Cell> {
         //println!("ccol: {}, crow: {}", self.c_col, self.c_row);
         let index = self.index_of(self.c_col, self.c_row);
         //println!("index: {}; buffer: {}", index, self.buffer.len());
-        self.buffer.get_mut(index  as usize)
+        self.buffer.get_mut(index as usize)
     }
 
     fn make_tab(&mut self) {
         for i in self.c_col..(std::cmp::max(self.rect.width, self.c_col + self.c_col % 4)) {
             let index = self.index_of(i, self.c_row);
             self
-                .buffer
-                .get_mut(index)
-                .expect(&format!("no value at bottom {}", index))
+                .buffer[index]
                 .reset();
         }
     }
@@ -274,7 +297,7 @@ impl<B: Backend> vte::Perform for Terminal<B> {
         let style = self.c_style.clone();
         let c_row = self.c_row;
         let c_col = self.c_col;
-        let mut cell = self.current_cell().expect(&format!("error with getting current cell: ({}, {})", c_col, c_row));
+        let cell = self.current_cell_mut().expect(&format!("error with getting current cell: ({}, {})", c_col, c_row));
         cell.symbol = c;
         cell.style = style;
         self.inc_col();

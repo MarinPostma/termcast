@@ -20,4 +20,6 @@ pub trait Backend {
     async fn show_cursor(&mut self) -> io::Result<()>;
 
     async fn cursor_goto(&mut self, cols: u16, rows: u16) -> io::Result<()>;
+
+    async fn flush(&mut self) -> io::Result<()>;
 }
