@@ -1,64 +1,79 @@
-use std::io;
-use std::io::Write;
 use std::fmt;
+use std::fmt::Write;
+
+use async_trait::async_trait;
+use tokio::io::AsyncWrite;
+use tokio::io::AsyncWriteExt;
+use tokio::io;
 
 use super::Backend;
-
 use crate::cell::Cell;
 use crate::style;
 
-pub struct TermionBackend<W: Write>(W);
-
-impl<W: Write> Write for TermionBackend<W> {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        self.0.write(buffer)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
-    }
-
+pub struct TermionBackend<W> {
+    writer: W,
+    buffer: String,
 }
 
-impl<W: Write> TermionBackend<W> {
+impl<W> TermionBackend<W> {
     pub fn new(writer: W) -> Self {
-        Self(writer)
+        Self {
+            writer,
+            buffer: String::new(),
+        }
     }
-
 }
 
-impl<W: Write> Backend for TermionBackend<W> {
-    fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
-        where
-            I: Iterator<Item = (u16, u16, &'a Cell)> {
-                use std::fmt::Write;
+#[async_trait(?Send)]
+impl<W: AsyncWrite + Unpin> Backend for TermionBackend<W> {
+    async fn draw<I>(&mut self, content: I) -> io::Result<()>
+    where
+        I: Iterator<Item = (u16, u16, Cell)> + Sync + Send {
 
-                let mut str_buf = String::new();
-                for cell in content {
-                    write!(str_buf, "{}", termion::cursor::Goto(cell.0, cell.1)).unwrap();
-                    write!(str_buf, "{}", Bg(cell.2.style.bg)).unwrap();
-                    write!(str_buf, "{}", Fg(cell.2.style.fg)).unwrap();
-                    write!(str_buf, "{}", cell.2.symbol).unwrap();
-                }
-                write!(self.0, "{}{}{}", str_buf, Bg(style::Color::Reset), Fg(style::Color::Reset))?;
-                self.0.flush()?;
-                Ok(())
+            for cell in content {
+                write!(self.buffer, "{}", termion::cursor::Goto(cell.0, cell.1)).unwrap();
+                write!(self.buffer, "{}", Bg(cell.2.style.bg)).unwrap();
+                write!(self.buffer, "{}", Fg(cell.2.style.fg)).unwrap();
+                write!(self.buffer, "{}", cell.2.symbol).unwrap();
+                write!(self.buffer, "{}", Bg(style::Color::Reset)).unwrap();
+                write!(self.buffer, "{}", Fg(style::Color::Reset)).unwrap();
+            }
+            self.writer.write_all(&self.buffer.as_bytes()).await?;
+            self.writer.flush().await?;
+            self.buffer.clear();
+            Ok(())
     }
 
-    fn clear(&mut self) -> Result<(), io::Error> {
-        write!(self.0, "{}", termion::clear::All)
+    async fn clear(&mut self) -> Result<(), io::Error> {
+        write!(self.buffer, "{}", termion::clear::All).unwrap();
+        self.writer.write_all(&self.buffer.as_bytes()).await?;
+        self.writer.flush().await?;
+        self.buffer.clear();
+        Ok(())
     }
 
-    fn hide_cursor(&mut self) -> io::Result<()> {
-        write!(self.0, "{}", termion::cursor::Hide)
+    async fn hide_cursor(&mut self) -> io::Result<()> {
+        write!(self.buffer, "{}", termion::cursor::Hide).unwrap();
+        self.writer.write_all(&self.buffer.as_bytes()).await?;
+        self.writer.flush().await?;
+        self.buffer.clear();
+        Ok(())
     }
 
-    fn show_cursor(&mut self) -> io::Result<()> {
-        write!(self.0, "{}", termion::cursor::Show)
+    async fn show_cursor(&mut self) -> io::Result<()> {
+        write!(self.buffer, "{}", termion::cursor::Show).unwrap();
+        self.writer.write_all(&self.buffer.as_bytes()).await?;
+        self.writer.flush().await?;
+        self.buffer.clear();
+        Ok(())
     }
 
-    fn cursor_goto(&mut self, cols: u16, rows: u16) -> io::Result<()> {
-        write!(self.0, "{}", termion::cursor::Goto(cols, rows))
+    async fn cursor_goto(&mut self, cols: u16, rows: u16) -> io::Result<()> {
+        write!(self.buffer, "{}", termion::cursor::Goto(cols, rows)).unwrap();
+        self.writer.write_all(&self.buffer.as_bytes()).await?;
+        self.writer.flush().await?;
+        self.buffer.clear();
+        Ok(())
     }
 }
 
