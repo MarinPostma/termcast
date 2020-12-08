@@ -38,42 +38,33 @@ impl<W: AsyncWrite + Unpin> Backend for TermionBackend<W> {
                 write!(self.buffer, "{}", Bg(style::Color::Reset)).unwrap();
                 write!(self.buffer, "{}", Fg(style::Color::Reset)).unwrap();
             }
-            self.writer.write_all(&self.buffer.as_bytes()).await?;
-            self.writer.flush().await?;
-            self.buffer.clear();
             Ok(())
     }
 
     async fn clear(&mut self) -> Result<(), io::Error> {
         write!(self.buffer, "{}", termion::clear::All).unwrap();
-        self.writer.write_all(&self.buffer.as_bytes()).await?;
-        self.writer.flush().await?;
-        self.buffer.clear();
         Ok(())
     }
 
     async fn hide_cursor(&mut self) -> io::Result<()> {
         write!(self.buffer, "{}", termion::cursor::Hide).unwrap();
-        self.writer.write_all(&self.buffer.as_bytes()).await?;
-        self.writer.flush().await?;
-        self.buffer.clear();
         Ok(())
     }
 
     async fn show_cursor(&mut self) -> io::Result<()> {
         write!(self.buffer, "{}", termion::cursor::Show).unwrap();
-        self.writer.write_all(&self.buffer.as_bytes()).await?;
-        self.writer.flush().await?;
-        self.buffer.clear();
         Ok(())
     }
 
     async fn cursor_goto(&mut self, cols: u16, rows: u16) -> io::Result<()> {
         write!(self.buffer, "{}", termion::cursor::Goto(cols, rows)).unwrap();
-        self.writer.write_all(&self.buffer.as_bytes()).await?;
-        self.writer.flush().await?;
-        self.buffer.clear();
         Ok(())
+    }
+
+    async fn flush(&mut self) -> io::Result<()> {
+        self.writer.write_all(&self.buffer.as_bytes()).await?;
+        self.buffer.clear();
+        self.writer.flush().await
     }
 }
 
