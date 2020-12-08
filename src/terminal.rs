@@ -42,16 +42,6 @@ impl Buffer {
                 }
             })
     }
-
-    //pub fn cells(&self) -> Vec<(u16, u16, Cell)> {
-        //self
-            //.cells[0]
-            //.iter()
-            //.cloned()
-            //.enumerate()
-            //.map(|(i, c)| (i as u16 % self.rect.width + 1 + self.rect.x, i as u16 / self.rect.width + 1 + self.rect.y, c))
-            //.collect()
-    //}
 }
 
 impl Deref for Buffer {
@@ -165,90 +155,6 @@ impl<B: Backend> Terminal<B> {
         Ok(())
     }
 
-    //#[allow(dead_code)]
-    //fn render_borders(&mut self) {
-        //// render top
-        //for i in 1..=self.rect.width {
-            //let index = self.index_of(i as u16, 1);
-            //self
-                //.buffer
-                //.get_mut(index)
-                //.expect(&format!("no value at {}", index))
-                //.set_symbol('─');
-        //}
-        //// render bottom
-        //for i in 1..=self.rect.width {
-            //let index = self.index_of(i as u16, self.rect.height);
-            //self
-                //.buffer
-                //.get_mut(index)
-                //.expect(&format!("no value at bottom {}", index))
-                //.set_symbol('─');
-        //}
-        //// render left
-        //for i in 1..=self.rect.height {
-            //let index = self.index_of(1, i as u16);
-            //self
-                //.buffer
-                //.get_mut(index)
-                //.expect(&format!("no value at bottom {}", index))
-                //.set_symbol('│');
-        //}
-        //// render right
-        //for i in 1..=self.rect.height {
-            //let index = self.index_of(self.rect.width, i as u16);
-            //self
-                //.buffer
-                //.get_mut(index)
-                //.expect(&format!("no value at bottom {}", index))
-                //.set_symbol('│');
-        //}
-
-        //// top right
-        //let index = self.index_of(1, 1);
-        //self
-            //.buffer
-            //.get_mut(index)
-            //.expect(&format!("no value at bottom {}", index))
-            //.set_symbol('┌');
-        ////
-        //// top left
-        //let index = self.index_of(self.rect.width, 1);
-        //self
-            //.buffer
-            //.get_mut(index)
-            //.expect(&format!("no value at bottom {}", index))
-            //.set_symbol('┐');
-        ////
-        //// bottom right
-        //let index = self.index_of(1, self.rect.height);
-        //self
-            //.buffer
-            //.get_mut(index)
-            //.expect(&format!("no value at bottom {}", index))
-            //.set_symbol('└');
-        ////
-        //// bottom left
-        //let index = self.index_of(self.rect.width, self.rect.height);
-        //self
-            //.buffer
-            //.get_mut(index)
-            //.expect(&format!("no value at bottom {}", index))
-            //.set_symbol('┘');
-
-        //// print title
-        //let title = " megaterm 5000 ";
-        //for (i, c) in title.chars().enumerate() {
-            //let index = self.index_of(i as u16 + 3, 1);
-        //self
-            //.buffer
-            //.get_mut(index)
-            //.expect(&format!("no value at bottom {}", index))
-            //.set_symbol(c);
-        //}
-    //}
-
-
     fn inc_row(&mut self) {
 
         if self.c_row == self.scroll_range.end as u16 {
@@ -266,18 +172,14 @@ impl<B: Backend> Terminal<B> {
     fn inc_col(&mut self) {
         if self.c_col == self.rect.width + 1 {
             self.c_col = 1;
-            //println!("we are here!! {}", self.c_row);
             self.inc_row();
-            //println!("we are here!! {}", self.c_row);
         } else {
             self.c_col += 1;
         }
     }
 
     fn current_cell_mut(&mut self) -> Option<&mut Cell> {
-        //println!("ccol: {}, crow: {}", self.c_col, self.c_row);
         let index = self.index_of(self.c_col, self.c_row);
-        //println!("index: {}; buffer: {}", index, self.buffer.len());
         self.buffer.get_mut(index as usize)
     }
 
