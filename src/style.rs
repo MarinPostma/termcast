@@ -6,24 +6,10 @@ pub struct Style {
 }
 
 impl Style {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn fg(&mut self, color: Color) -> &mut Self {
-        self.fg = color;
-        self
-    }
-
     pub fn reset(&mut self) -> &mut Self {
         self.bg = Color::default();
         self.fg = Color::default();
         self.modifier = Modifier::default();
-        self
-    }
-
-    pub fn bg(&mut self, color: Color) -> &mut Self {
-        self.bg = color;
         self
     }
 
@@ -37,11 +23,6 @@ impl Style {
         self
     }
 
-    pub fn set_underline(&mut self) -> &mut Self {
-        self.modifier |= Modifier::UNDERLINED;
-        self
-    }
-
     pub fn unset_underline(&mut self) -> &mut Self {
         self.modifier &= !Modifier::UNDERLINED;
         self
@@ -49,11 +30,6 @@ impl Style {
 
     pub fn set_bold(&mut self) -> &mut Self {
         self.modifier |= Modifier::BOLD;
-        self
-    }
-
-    pub fn unset_bold(&mut self) -> &mut Self {
-        self.modifier &= !Modifier::BOLD;
         self
     }
 
@@ -121,6 +97,7 @@ bitflags! {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Color {
     Reset,
     Black,

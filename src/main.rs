@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 #[macro_use]
 extern crate bitflags;
 
@@ -10,11 +8,7 @@ mod layout;
 mod cell;
 mod host;
 
-#[derive(Default)]
-struct State;
-
 use structopt::StructOpt;
-
 
 #[derive(StructOpt)]
 enum Args {
@@ -24,18 +18,14 @@ enum Args {
         #[structopt(short = "c", default_value = "80")]
         cols: u16,
     },
-    Watch {
-        addr: String,
-    },
+    Watch,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Args::from_args();
     match opt {
-        Args::Cast { rows, cols } => {
-            host::init_host(cols, rows).await?;
-        }
+        Args::Cast { rows, cols } => host::Host::new(cols, rows)?.run().await?,
         _ => ()
     }
     Ok(())
