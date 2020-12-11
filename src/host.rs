@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, io::Stdout};
 use std::io::stdin;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::process::Command;
@@ -21,19 +21,32 @@ ioctl_read_bad!(get_win_size, TIOCGWINSZ, Winsize);
 
 
 pub struct Host {
-    cols: u16,
-    rows: u16,
+    terminal: Terminal<TermionBackend<termion::raw::RawTerminal<Stdout>>>,
+    parser: vte::Parser,
     master_fd: RawFd,
 }
 
 impl Host {
-    pub fn new(cols: u16, rows: u16) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(cols: u16, rows: u16) -> Result<Self, Box<dyn Error>> {
         let winsize = Winsize { ws_row: rows, ws_col: cols, ws_xpixel: 0,  ws_ypixel: 0 };
         let pty_fork_result = forkpty(Some(&winsize), None)?;
         let master_fd = pty_fork_result.master;
 
         match pty_fork_result.fork_result {
-            ForkResult::Parent { .. } => Ok(Self { cols, rows, master_fd }),
+            ForkResult::Parent { .. } => {
+                let stdout = std::io::stdout().into_raw_mode()?;
+                let mut master_winsize = Winsize { ws_row: 0, ws_col: 0, ws_xpixel: 0,  ws_ypixel: 0 };
+                unsafe { get_win_size(stdout.as_raw_fd(), &mut master_winsize as *mut _) }?;
+
+                let mut backend = TermionBackend::new(stdout);
+                backend.clear().await?;
+
+                let rect = Rect::new(master_winsize.ws_col / 2 - 40, master_winsize.ws_row / 2 - 20, cols, rows);
+                let terminal = Terminal::new(rect, backend);
+
+                let parser = vte::Parser::new();
+                Ok(Self { terminal, parser, master_fd })
+            },
             ForkResult::Child => {
                 let mut child = Command::new("bash").spawn()?;
                 child.wait()?;
@@ -43,18 +56,8 @@ impl Host {
         }
     }
 
-    pub async fn run(self) -> Result<(), Box<dyn Error>> {
-        let mut master_winsize = Winsize { ws_row: 0, ws_col: 0, ws_xpixel: 0,  ws_ypixel: 0 };
-        let stdout = std::io::stdout().into_raw_mode().unwrap();
-        unsafe { get_win_size(stdout.as_raw_fd(), &mut master_winsize as *mut _) }?;
-        let stdout_file = unsafe { fs::File::from_raw_fd(stdout.as_raw_fd()) };
-        let stdout = File::from_std(stdout_file);
+    pub async fn run(mut self) -> Result<(), Box<dyn Error>> {
         let mut buf = [0; 4096];
-        let mut parser = vte::Parser::new();
-        let rect = Rect::new(master_winsize.ws_col / 2 - 40, master_winsize.ws_row / 2 - 20, self.cols, self.rows);
-        let mut backend = TermionBackend::new(stdout);
-        backend.clear().await?;
-        let mut terminal = Terminal::new(rect, backend);
 
         let mut stdin = spawn_stdin();
 
@@ -70,9 +73,9 @@ impl Host {
                     match result {
                         Ok(n) if n > 0 => {
                             for byte in &buf[..n] {
-                                parser.advance(&mut terminal, *byte);
+                                self.parser.advance(&mut self.terminal, *byte);
                             }
-                            terminal.draw().await?;
+                            self.terminal.draw().await?;
                         }
                         e => {
                             println!("exited read with: {:?}", e);

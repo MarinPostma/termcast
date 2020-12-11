@@ -25,7 +25,7 @@ enum Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Args::from_args();
     match opt {
-        Args::Cast { rows, cols } => host::Host::new(cols, rows)?.run().await?,
+        Args::Cast { rows, cols } => host::Host::new(cols, rows).await?.run().await?,
         _ => ()
     }
     Ok(())

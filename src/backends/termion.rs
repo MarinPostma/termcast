@@ -2,8 +2,6 @@ use std::fmt;
 use std::fmt::Write;
 
 use async_trait::async_trait;
-use tokio::io::AsyncWrite;
-use tokio::io::AsyncWriteExt;
 use tokio::io;
 
 use super::Backend;
@@ -25,7 +23,7 @@ impl<W> TermionBackend<W> {
 }
 
 #[async_trait(?Send)]
-impl<W: AsyncWrite + Unpin> Backend for TermionBackend<W> {
+impl<W: std::io::Write + Unpin> Backend for TermionBackend<W> {
     async fn draw<I>(&mut self, content: I) -> io::Result<()>
     where
         I: Iterator<Item = (u16, u16, Cell)> + Sync + Send {
@@ -62,9 +60,9 @@ impl<W: AsyncWrite + Unpin> Backend for TermionBackend<W> {
     }
 
     async fn flush(&mut self) -> io::Result<()> {
-        self.writer.write_all(&self.buffer.as_bytes()).await?;
+        self.writer.write_all(&self.buffer.as_bytes())?;
         self.buffer.clear();
-        self.writer.flush().await
+        self.writer.flush()
     }
 }
 
