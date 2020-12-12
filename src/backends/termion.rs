@@ -23,7 +23,7 @@ impl<W> TermionBackend<W> {
 }
 
 #[async_trait(?Send)]
-impl<W: std::io::Write + Unpin> Backend for TermionBackend<W> {
+impl<W: std::io::Write> Backend for TermionBackend<W> {
     async fn draw<I>(&mut self, content: I) -> io::Result<()>
     where
         I: Iterator<Item = (u16, u16, Cell)> + Sync + Send {

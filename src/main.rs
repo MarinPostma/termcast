@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate bitflags;
 
-mod terminal;
-mod style;
 mod backends;
-mod layout;
 mod cell;
 mod host;
+mod layout;
+mod style;
+mod terminal;
 
 use structopt::StructOpt;
 

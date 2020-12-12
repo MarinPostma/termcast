@@ -1,29 +1,28 @@
-use std::{fs, io::Stdout};
-use std::io::stdin;
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
-use std::process::Command;
+use std::convert::TryFrom;
 use std::error::Error;
+use std::io::{Stdout, stdin};
+use std::os::unix::io::AsRawFd;
+use std::process::Command;
 
 use nix::ioctl_read_bad;
 use nix::libc::TIOCGWINSZ;
 use nix::pty::{Winsize, forkpty};
 use nix::unistd::ForkResult;
 use termion::raw::IntoRawMode;
-use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
 use tokio::sync::mpsc;
+use tokio_fd::AsyncFd;
 
-use crate::terminal::Terminal;
-use crate::layout::Rect;
 use crate::backends::{Backend, TermionBackend};
+use crate::layout::Rect;
+use crate::terminal::Terminal;
 
 ioctl_read_bad!(get_win_size, TIOCGWINSZ, Winsize);
-
 
 pub struct Host {
     terminal: Terminal<TermionBackend<termion::raw::RawTerminal<Stdout>>>,
     parser: vte::Parser,
-    master_fd: RawFd,
+    master: AsyncFd,
 }
 
 impl Host {
@@ -31,6 +30,7 @@ impl Host {
         let winsize = Winsize { ws_row: rows, ws_col: cols, ws_xpixel: 0,  ws_ypixel: 0 };
         let pty_fork_result = forkpty(Some(&winsize), None)?;
         let master_fd = pty_fork_result.master;
+        let master = AsyncFd::try_from(master_fd)?;
 
         match pty_fork_result.fork_result {
             ForkResult::Parent { .. } => {
@@ -45,12 +45,11 @@ impl Host {
                 let terminal = Terminal::new(rect, backend);
 
                 let parser = vte::Parser::new();
-                Ok(Self { terminal, parser, master_fd })
+                Ok(Self { terminal, parser, master })
             },
             ForkResult::Child => {
                 let mut child = Command::new("bash").spawn()?;
                 child.wait()?;
-                println!("process over");
                 std::process::exit(0);
             }
         }
@@ -58,18 +57,12 @@ impl Host {
 
     pub async fn run(mut self) -> Result<(), Box<dyn Error>> {
         let mut buf = [0; 4096];
-
         let mut stdin = spawn_stdin();
-
-        let master_writer_file = unsafe { fs::File::from_raw_fd(self.master_fd) };
-        let mut master_writer = File::from_std(master_writer_file);
-
-        let master_reader_file = unsafe { fs::File::from_raw_fd(self.master_fd) };
-        let mut master_reader = File::from_std(master_reader_file);
+        let (mut master_read, mut master_write) = split(self.master);
 
         loop {
             tokio::select! {
-                result = master_reader.read(&mut buf) => {
+                result = master_read.read(&mut buf) => {
                     match result {
                         Ok(n) if n > 0 => {
                             for byte in &buf[..n] {
@@ -77,22 +70,16 @@ impl Host {
                             }
                             self.terminal.draw().await?;
                         }
-                        e => {
-                            println!("exited read with: {:?}", e);
-                            break
-                        }
+                        _ => break,
                     }
                 },
                 result = stdin.recv() => {
                     match result {
                         Some(byte) => {
-                            master_writer.write(&[byte as u8]).await?;
-                            master_writer.flush().await?;
+                            master_write.write(&[byte as u8]).await?;
+                            master_write.flush().await?;
                         }
-                        e => {
-                            println!("exited recv with: {:?}", e);
-                            break
-                        }
+                        _ => break,
                     }
                 }
             }

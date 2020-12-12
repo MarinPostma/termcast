@@ -218,9 +218,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.71"
+version = "0.2.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9457b06509d27052635f90d6466700c65095fdf75409b3fbdd903e988b886f49"
+checksum = "1482821306169ec4d07f6aca392a4681f66c75c9918aa49641a2595db64053cb"
 
 [[package]]
 name = "lock_api"
@@ -543,6 +543,7 @@ dependencies = [
  "structopt",
  "termion",
  "tokio",
+ "tokio-fd",
  "vte",
 ]
 
@@ -587,6 +588,16 @@ dependencies = [
  "slab",
  "tokio-macros",
  "winapi",
+]
+
+[[package]]
+name = "tokio-fd"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1bf016cfff6b6aa45efc6cb64277f782a2764b5e0dd7ac90e9099424b1ca861"
+dependencies = [
+ "libc",
+ "tokio",
 ]
 
 [[package]]
