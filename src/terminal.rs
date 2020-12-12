@@ -200,8 +200,8 @@ impl<B: Backend> vte::Perform for Terminal<B> {
         let c_row = self.c_row;
         let c_col = self.c_col;
         let cell = self.current_cell_mut().expect(&format!("error with getting current cell: ({}, {})", c_col, c_row));
-        cell.symbol = c;
-        cell.style = style;
+        cell.set_symbol(c);
+        cell.set_style(style);
         self.inc_col();
     }
 

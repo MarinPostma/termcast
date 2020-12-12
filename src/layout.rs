@@ -11,19 +11,19 @@ impl Rect {
         Rect { x, y, width, height }
     } 
 
-    pub fn right(&self) -> u16 {
-        self.x + self.width
-    }
+    //pub fn right(&self) -> u16 {
+        //self.x + self.width
+    //}
 
-    pub fn left(&self) -> u16 {
-        self.x
-    }
+    //pub fn left(&self) -> u16 {
+        //self.x
+    //}
 
-    pub fn top(&self) -> u16 {
-        self.y
-    }
+    //pub fn top(&self) -> u16 {
+        //self.y
+    //}
 
-    pub fn bottom(&self) -> u16 {
-        self.y + self.height
-    }
+    //pub fn bottom(&self) -> u16 {
+        //self.y + self.height
+    //}
 }
