@@ -9,6 +9,7 @@ mod style;
 mod terminal;
 
 use structopt::StructOpt;
+use anyhow::Result;
 
 #[derive(StructOpt)]
 enum Args {
@@ -22,7 +23,7 @@ enum Args {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let opt = Args::from_args();
     match opt {
         Args::Cast { rows, cols } => host::Host::new(cols, rows).await?.run().await?,

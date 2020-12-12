@@ -16,3 +16,4 @@ structopt = { version = "0.3" }
 tokio = { version = "0.3.5", features = ["full"] }
 async-trait = "0.1.42"
 tokio-fd = "0.2.1"
+anyhow = "1.0.35"

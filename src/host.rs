@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
-use std::error::Error;
 use std::io::{Stdout, stdin};
 use std::os::unix::io::AsRawFd;
 use std::process::Command;
 
+use anyhow::Result;
 use nix::ioctl_read_bad;
 use nix::libc::TIOCGWINSZ;
 use nix::pty::{Winsize, forkpty};
@@ -26,7 +26,7 @@ pub struct Host {
 }
 
 impl Host {
-    pub async fn new(cols: u16, rows: u16) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(cols: u16, rows: u16) -> Result<Self> {
         let winsize = Winsize { ws_row: rows, ws_col: cols, ws_xpixel: 0,  ws_ypixel: 0 };
         let pty_fork_result = forkpty(Some(&winsize), None)?;
         let master_fd = pty_fork_result.master;
@@ -55,7 +55,7 @@ impl Host {
         }
     }
 
-    pub async fn run(mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn run(mut self) -> Result<()> {
         let mut buf = [0; 4096];
         let mut stdin = spawn_stdin();
         let (mut master_read, mut master_write) = split(self.master);
