@@ -179,7 +179,11 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn current_cell_mut(&mut self) -> Option<&mut Cell> {
-        let index = self.index_of(self.c_col, self.c_row);
+        let mut index = self.index_of(self.c_col, self.c_row);
+        if index >= self.buffer.len() {
+            self.delete_lines(0);
+            index = self.index_of(0, self.c_row);
+        }
         self.buffer.get_mut(index as usize)
     }
 
