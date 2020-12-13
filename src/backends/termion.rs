@@ -26,10 +26,10 @@ impl<W> TermionBackend<W> {
 impl<W: std::io::Write> Backend for TermionBackend<W> {
     async fn draw<I>(&mut self, content: I) -> io::Result<()>
     where
-        I: Iterator<Item = (u16, u16, Cell)> + Sync + Send {
+        I: Iterator<Item = (usize, usize, Cell)> + Sync + Send {
 
             for cell in content {
-                write!(self.buffer, "{}", termion::cursor::Goto(cell.0, cell.1)).unwrap();
+                write!(self.buffer, "{}", termion::cursor::Goto(cell.0 as u16 + 1, cell.1 as u16 + 1)).unwrap();
                 write!(self.buffer, "{}", Bg(cell.2.style.bg)).unwrap();
                 write!(self.buffer, "{}", Fg(cell.2.style.fg)).unwrap();
                 write!(self.buffer, "{}", cell.2.symbol).unwrap();
@@ -54,8 +54,8 @@ impl<W: std::io::Write> Backend for TermionBackend<W> {
         Ok(())
     }
 
-    async fn cursor_goto(&mut self, cols: u16, rows: u16) -> io::Result<()> {
-        write!(self.buffer, "{}", termion::cursor::Goto(cols, rows)).unwrap();
+    async fn cursor_goto(&mut self, cols: usize, rows: usize) -> io::Result<()> {
+        write!(self.buffer, "{}", termion::cursor::Goto(cols as u16 + 1, rows as u16 + 1)).unwrap();
         Ok(())
     }
 
