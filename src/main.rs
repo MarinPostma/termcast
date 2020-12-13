@@ -12,21 +12,32 @@ use structopt::StructOpt;
 use anyhow::Result;
 
 #[derive(StructOpt)]
-enum Args {
+struct Options {
+    #[structopt(short = "d", long = "debug")]
+    debug: bool,
+    #[structopt(flatten)]
+    command: Command,
+}
+
+#[derive(StructOpt)]
+enum Command {
     Cast {
         #[structopt(short = "r", default_value = "40")]
-        rows: u16,
+        rows: usize,
         #[structopt(short = "c", default_value = "80")]
-        cols: u16,
+        cols: usize,
     },
     Watch,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let opt = Args::from_args();
-    match opt {
-        Args::Cast { rows, cols } => host::Host::new(cols, rows).await?.run().await?,
+    let opt = Options::from_args();
+    if opt.debug {
+        env_logger::init();
+    }
+    match opt.command {
+        Command::Cast { rows, cols } => host::Host::new(cols, rows).await?.run().await?,
         _ => ()
     }
     Ok(())
