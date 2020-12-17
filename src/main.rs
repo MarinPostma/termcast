@@ -27,7 +27,6 @@ enum Command {
         #[structopt(short = "c", default_value = "80")]
         cols: usize,
     },
-    Watch,
 }
 
 #[tokio::main]
