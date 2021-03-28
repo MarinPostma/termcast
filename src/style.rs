@@ -1,4 +1,4 @@
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
@@ -96,7 +96,7 @@ bitflags! {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[allow(dead_code)]
 pub enum Color {
     Reset,

@@ -3,6 +3,7 @@ use std::io::{stdin, Stdout};
 use std::os::unix::io::AsRawFd;
 use std::process::Command;
 use std::time::{Duration, Instant};
+use std::net::SocketAddr;
 
 use anyhow::Result;
 use nix::ioctl_read_bad;
@@ -11,12 +12,13 @@ use nix::pty::{forkpty, Winsize};
 use nix::unistd::ForkResult;
 use termion::raw::IntoRawMode;
 use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, broadcast};
 use tokio_fd::AsyncFd;
 
 use crate::backends::{Backend, TermionBackend};
 use crate::layout::Rect;
 use crate::terminal::Terminal;
+use crate::network::Network;
 
 const FPS: u64 = 60;
 
@@ -84,6 +86,12 @@ impl Host {
         let mut last_draw_time = Instant::now();
         let period = Duration::from_millis(1000 / FPS);
 
+        let (sender, _) = broadcast::channel(100);
+        let addr = SocketAddr::try_from(([0, 0, 0, 0], 9999))?;
+        let network = Network::new(sender.clone(), addr);
+
+        tokio::task::spawn(network.run());
+
         let mut interval = tokio::time::interval(period);
 
         loop {
@@ -95,7 +103,10 @@ impl Host {
                                 self.parser.advance(&mut self.terminal, *byte);
                             }
                             if last_draw_time.elapsed() >= period {
-                                self.terminal.draw().await?;
+                                let change = self.terminal.draw().await?;
+                                if !change.is_empty() {
+                                    let _ = sender.send(change);
+                                }
                                 last_draw_time = Instant::now();
                             }
                         }
@@ -113,7 +124,10 @@ impl Host {
                 }
                 _ = interval.tick() => {
                     if last_draw_time.elapsed() >= period {
-                        self.terminal.draw().await?;
+                        let change = self.terminal.draw().await?;
+                        if !change.is_empty() {
+                            let _ = sender.send(change);
+                        }
                         last_draw_time = Instant::now();
                     }
                 }

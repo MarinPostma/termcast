@@ -1,6 +1,6 @@
 use crate::style::Style;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct Cell {
     pub style: Style,
     pub symbol: char,
