@@ -7,16 +7,16 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures = "0.3.5"
-nix = "0.17.0"
-termion = "1.5.5"
+futures = "0.3.13"
+nix = "0.20.0"
+termion = "1.5.6"
 bitflags = "1.2.1"
-vte = "0.9.0"
-structopt = { version = "0.3" }
-tokio = { version = "0.3.5", features = ["full"] }
-async-trait = "0.1.42"
-tokio-fd = "0.2.1"
-anyhow = "1.0.35"
-log = "0.4.11"
-once_cell = "1.5.2"
-env_logger = "0.8.2"
+vte = "0.10.0"
+structopt = "0.3.21"
+tokio = { version = "1.4.0", features = ["full"] }
+async-trait = "0.1.48"
+tokio-fd = "0.3.0"
+anyhow = "1.0.40"
+log = "0.4.14"
+once_cell = "1.7.2"
+env_logger = "0.8.3"

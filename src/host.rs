@@ -1,21 +1,24 @@
 use std::convert::TryFrom;
-use std::io::{Stdout, stdin};
+use std::io::{stdin, Stdout};
 use std::os::unix::io::AsRawFd;
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use nix::ioctl_read_bad;
 use nix::libc::TIOCGWINSZ;
-use nix::pty::{Winsize, forkpty};
+use nix::pty::{forkpty, Winsize};
 use nix::unistd::ForkResult;
 use termion::raw::IntoRawMode;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, split};
+use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio_fd::AsyncFd;
 
 use crate::backends::{Backend, TermionBackend};
 use crate::layout::Rect;
 use crate::terminal::Terminal;
+
+const FPS: u64 = 60;
 
 ioctl_read_bad!(get_win_size, TIOCGWINSZ, Winsize);
 
@@ -27,7 +30,12 @@ pub struct Host {
 
 impl Host {
     pub async fn new(cols: usize, rows: usize) -> Result<Self> {
-        let winsize = Winsize { ws_row: rows as u16, ws_col: cols as u16, ws_xpixel: 0,  ws_ypixel: 0 };
+        let winsize = Winsize {
+            ws_row: rows as u16,
+            ws_col: cols as u16,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        };
         let pty_fork_result = forkpty(Some(&winsize), None)?;
         let master_fd = pty_fork_result.master;
         let master = AsyncFd::try_from(master_fd)?;
@@ -35,19 +43,32 @@ impl Host {
         match pty_fork_result.fork_result {
             ForkResult::Parent { .. } => {
                 let stdout = std::io::stdout().into_raw_mode()?;
-                let mut master_winsize = Winsize { ws_row: 0, ws_col: 0, ws_xpixel: 0,  ws_ypixel: 0 };
+                let mut master_winsize = Winsize {
+                    ws_row: 0,
+                    ws_col: 0,
+                    ws_xpixel: 0,
+                    ws_ypixel: 0,
+                };
                 unsafe { get_win_size(stdout.as_raw_fd(), &mut master_winsize as *mut _) }?;
 
                 let mut backend = TermionBackend::new(stdout);
                 backend.clear().await?;
 
-                let rect = Rect::new(master_winsize.ws_col as usize / 2 - cols/2, master_winsize.ws_row as usize / 2 - rows/2, cols, rows);
-                //let rect = Rect::new(0, 0, cols, rows);
+                let rect = Rect::new(
+                    master_winsize.ws_col as usize / 2 - cols / 2,
+                    master_winsize.ws_row as usize / 2 - rows / 2,
+                    cols,
+                    rows,
+                );
                 let terminal = Terminal::new(rect, backend);
 
                 let parser = vte::Parser::new();
-                Ok(Self { terminal, parser, master })
-            },
+                Ok(Self {
+                    terminal,
+                    parser,
+                    master,
+                })
+            }
             ForkResult::Child => {
                 let mut child = Command::new("bash").spawn()?;
                 child.wait()?;
@@ -60,6 +81,10 @@ impl Host {
         let mut buf = [0; 4096];
         let mut stdin = spawn_stdin();
         let (mut master_read, mut master_write) = split(self.master);
+        let mut last_draw_time = Instant::now();
+        let period = Duration::from_millis(1000 / FPS);
+
+        let mut interval = tokio::time::interval(period);
 
         loop {
             tokio::select! {
@@ -69,7 +94,10 @@ impl Host {
                             for byte in &buf[..n] {
                                 self.parser.advance(&mut self.terminal, *byte);
                             }
-                            self.terminal.draw().await?;
+                            if last_draw_time.elapsed() >= period {
+                                self.terminal.draw().await?;
+                                last_draw_time = Instant::now();
+                            }
                         }
                         _ => break,
                     }
@@ -81,6 +109,12 @@ impl Host {
                             master_write.flush().await?;
                         }
                         _ => break,
+                    }
+                }
+                _ = interval.tick() => {
+                    if last_draw_time.elapsed() >= period {
+                        self.terminal.draw().await?;
+                        last_draw_time = Instant::now();
                     }
                 }
             }
@@ -99,10 +133,10 @@ fn spawn_stdin() -> mpsc::UnboundedReceiver<u8> {
             match stdin.read(&mut buf) {
                 Ok(1) => {
                     if stdin_snd.send(buf[0] as u8).is_err() {
-                        break
+                        break;
                     }
-                },
-                _ => break
+                }
+                _ => break,
             }
         }
     });

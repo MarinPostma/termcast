@@ -39,7 +39,6 @@ async fn main() -> Result<()> {
     }
     match opt.command {
         Command::Cast { rows, cols } => host::Host::new(cols, rows).await?.run().await?,
-        _ => ()
     }
     Ok(())
 }

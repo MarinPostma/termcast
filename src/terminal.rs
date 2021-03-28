@@ -3,11 +3,11 @@ use std::ops::Range;
 
 use log::debug;
 
-use crate::layout::Rect;
-use crate::cell::Cell;
-use crate::style::Style;
 use crate::backends::Backend;
 use crate::buffer::Buffer;
+use crate::cell::Cell;
+use crate::layout::Rect;
+use crate::style::Style;
 
 pub struct Terminal<B: Backend> {
     c_style: Style,
@@ -49,7 +49,12 @@ impl<B: Backend> Terminal<B> {
 
     #[inline]
     fn set_row(&mut self, row: usize) {
-        assert!(row < self.height(), format!("row out of bounds: {} >= {}", row, self.height()));
+        assert!(
+            row < self.height(),
+            "row out of bounds: {} >= {}",
+            row,
+            self.height()
+        );
         self.c_row = row;
     }
 
@@ -60,7 +65,12 @@ impl<B: Backend> Terminal<B> {
 
     #[inline]
     fn set_col(&mut self, col: usize) {
-        assert!(col < self.width(), format!("col out of bounds: {} >= {}", col, self.width()));
+        assert!(
+            col < self.width(),
+            "col out of bounds: {} >= {}",
+            col,
+            self.width()
+        );
         self.c_col = col;
     }
 
@@ -81,8 +91,16 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn index_of(&self, x: usize, y: usize) -> usize {
-        debug!("getting position ({}, {}), width = {}, height = {}", x, y, self.rect.width, self.rect.height);
-        (y * self.rect.width + x) as usize
+        let width = self.rect.width;
+        debug!(
+            "getting position ({}, {}), width = {}, height = {}, index = {}",
+            x,
+            y,
+            width,
+            self.rect.height,
+            (y * self.rect.width + x) as usize
+        );
+        (y * width + x) as usize
     }
 
     fn move_up(&mut self, n: usize) {
@@ -132,7 +150,10 @@ impl<B: Backend> Terminal<B> {
         self.buffer.drain(to_remove_start..to_remove_end);
         let to_insert_start = self.current_line_index();
         let amount = n * self.width();
-        self.buffer.splice(to_insert_start..to_insert_start, (0..amount).map(|_| Cell::default()));
+        self.buffer.splice(
+            to_insert_start..to_insert_start,
+            (0..amount).map(|_| Cell::default()),
+        );
     }
 
     fn delete_lines(&mut self, num: usize) {
@@ -142,7 +163,8 @@ impl<B: Backend> Terminal<B> {
         let end = start + amount;
         let len_before = self.buffer.len();
         let index = self.scroll_range_end_index();
-        self.buffer.splice(index..index, (0..amount).map(|_| Cell::default()));
+        self.buffer
+            .splice(index..index, (0..amount).map(|_| Cell::default()));
         self.buffer.drain(start..end);
         assert_eq!(len_before, self.buffer.len());
     }
@@ -166,23 +188,31 @@ impl<B: Backend> Terminal<B> {
                 (start, end)
             }
         };
-        self.buffer[start..=end].iter_mut().for_each(|c| { c.reset(); });
+        self.buffer[start..=end].iter_mut().for_each(|c| {
+            c.reset();
+        });
     }
 
     fn clear_screen(&mut self, mode: ClearMode) {
         debug!("clear: {:?}", mode);
         match mode {
             ClearMode::All => {
-                self.buffer.iter_mut().for_each(|cell| { cell.reset(); });
-            },
+                self.buffer.iter_mut().for_each(|cell| {
+                    cell.reset();
+                });
+            }
             ClearMode::Above => {
                 let index = self.current_index();
-                self.buffer[..=index].iter_mut().for_each(|cell| { cell.reset(); });
-            },
+                self.buffer[..=index].iter_mut().for_each(|cell| {
+                    cell.reset();
+                });
+            }
             ClearMode::Below => {
                 let index = self.current_index();
-                self.buffer[index..].iter_mut().for_each(|cell| { cell.reset(); });
-            },
+                self.buffer[index..].iter_mut().for_each(|cell| {
+                    cell.reset();
+                });
+            }
             mode => {
                 debug!("unhandled clear mode: {:?}", mode);
             }
@@ -205,7 +235,10 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn inc_row(&mut self) {
-        debug!("inc row, c_row: {}, range_end: {}", self.c_row, self.scroll_range.end);
+        debug!(
+            "inc row, c_row: {}, range_end: {}",
+            self.c_row, self.scroll_range.end
+        );
         if self.c_row < self.scroll_range.end - 1 {
             self.c_row += 1;
         } else {
@@ -216,17 +249,8 @@ impl<B: Backend> Terminal<B> {
             let end = (self.scroll_range.end - 1) * width;
             debug!("width: {}, start: {}, end: {}", width, start, end);
             self.buffer.drain(start..start + width);
-            self.buffer.splice(end..end, (0..width).map(|_| Cell::default()));
-        }
-    }
-
-    fn inc_col(&mut self) {
-        debug!("inc col");
-        if self.c_col >= self.width() {
-            self.c_col = 1;
-            self.inc_row();
-        } else {
-            self.c_col += 1;
+            self.buffer
+                .splice(end..end, (0..width).map(|_| Cell::default()));
         }
     }
 
@@ -248,7 +272,8 @@ impl<B: Backend> Terminal<B> {
         self.buffer.drain(start..end);
         let index = self.scroll_range_start_index();
         let width = self.width();
-        self.buffer.splice(index..index, (0..width).map(|_| Cell::default()));
+        self.buffer
+            .splice(index..index, (0..width).map(|_| Cell::default()));
         assert_eq!(len_before, self.buffer.len());
     }
 
@@ -271,23 +296,28 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn put_char(&mut self, c: char) {
-        //debug!("put char: {}", c);
+        debug!("put char: {} at ({}, {})", c, self.c_col, self.c_row);
+        if self.c_col >= self.rect.width {
+            self.c_col = 0;
+            self.inc_row();
+        }
         let style = self.c_style.clone();
         let c_row = self.c_row;
         let c_col = self.c_col;
-        let cell = self.current_cell_mut().expect(&format!("error with getting current cell: ({}, {})", c_col, c_row));
+        let cell = self.current_cell_mut().expect(&format!(
+            "error with getting current cell: ({}, {})",
+            c_col, c_row
+        ));
         cell.set_symbol(c);
         cell.set_style(style);
-        self.inc_col();
+        self.c_col += 1;
     }
 
     fn put_tab(&mut self) {
         debug!("put tab");
         for i in self.c_col..(std::cmp::max(self.rect.width, self.c_col + self.c_col % 4)) {
             let index = self.index_of(i, self.c_row);
-            self
-                .buffer[index]
-                .reset();
+            self.buffer[index].reset();
         }
     }
 
@@ -310,7 +340,9 @@ impl<B: Backend> Terminal<B> {
         self.backend.hide_cursor().await?;
         let cells = self.buffer.diff().collect::<Vec<_>>();
         self.backend.draw(cells.iter().cloned()).await?;
-        self.backend.cursor_goto(self.c_col + self.rect.x, self.c_row + self.rect.y).await?;
+        self.backend
+            .cursor_goto(self.c_col + self.rect.x, self.c_row + self.rect.y)
+            .await?;
         self.backend.show_cursor().await?;
         self.backend.flush().await?;
         Ok(cells)
@@ -372,7 +404,7 @@ impl<B: Backend> vte::Perform for Terminal<B> {
 
     // TODO replace OSC parsing with parser combinators.
     #[inline]
-    fn osc_dispatch(&mut self, params: &[&[u8]], bell_terminated: bool) {
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
         match params[0] {
             _ => debug!("[unhandled osc dispatch] byte={:?}", params),
         }
@@ -384,12 +416,16 @@ impl<B: Backend> vte::Perform for Terminal<B> {
         &mut self,
         params: &vte::Params,
         intermediates: &[u8],
-        has_ignored_intermediates: bool,
+        _has_ignored_intermediates: bool,
         action: char,
     ) {
         let mut params_iter = params.iter();
         let mut next_param_or = |default: usize| {
-            params_iter.next().map(|param| param[0] as usize).filter(|&param| param != 0).unwrap_or(default)
+            params_iter
+                .next()
+                .map(|param| param[0] as usize)
+                .filter(|&param| param != 0)
+                .unwrap_or(default)
         };
 
         match (action, intermediates.get(0)) {
@@ -402,7 +438,7 @@ impl<B: Backend> vte::Perform for Terminal<B> {
                 let y = next_param_or(1);
                 let x = next_param_or(1);
                 self.cursor_goto(x - 1, y - 1);
-            },
+            }
             ('J', None) => {
                 let mode = match next_param_or(0) {
                     0 => ClearMode::Below,
@@ -411,11 +447,11 @@ impl<B: Backend> vte::Perform for Terminal<B> {
                     3 => ClearMode::Saved,
                     _ => {
                         return;
-                    },
+                    }
                 };
 
                 self.clear_screen(mode);
-            },
+            }
             ('L', None) => self.insert_line(next_param_or(1)),
             ('K', None) => {
                 let mode = match next_param_or(0) {
@@ -424,60 +460,83 @@ impl<B: Backend> vte::Perform for Terminal<B> {
                     2 => LineClearMode::All,
                     _ => {
                         return;
-                    },
+                    }
                 };
                 self.clear_line(mode);
-            },
+            }
             ('M', None) => self.delete_lines(next_param_or(1)),
             //colors
             ('m', None) => {
                 //println!("params: {:?}, intermediates: {:?}", params, intermediates);
                 let params = params.iter().map(|p| p[0] as usize).collect::<Vec<_>>();
                 match params[0] {
-                    0 => { self.c_style.reset(); }
-                    3 => { self.c_style.set_italic(); }
+                    0 => {
+                        self.c_style.reset();
+                    }
+                    3 => {
+                        self.c_style.set_italic();
+                    }
                     1 => {
                         self.c_style.set_bold();
                         if params.len() == 2 {
                             self.c_style.set_color_3bits(params[1] as usize);
                         }
                     }
-                    23 => { self.c_style.unset_italic(); }
-                    24 => { self.c_style.unset_underline(); }
+                    23 => {
+                        self.c_style.unset_italic();
+                    }
+                    24 => {
+                        self.c_style.unset_underline();
+                    }
                     // set foreground
-                    38 => {
-                        match params[1] {
-                            5 => self.c_style.fg = crate::style::Color::Indexed(params[2] as u8),
-                            2 => self.c_style.fg = crate::style::Color::Rgb(params[2] as u8, params[3] as u8, params[4] as u8),
-                            _ => unreachable!("bad rgb color")
+                    38 => match params[1] {
+                        5 => self.c_style.fg = crate::style::Color::Indexed(params[2] as u8),
+                        2 => {
+                            self.c_style.fg = crate::style::Color::Rgb(
+                                params[2] as u8,
+                                params[3] as u8,
+                                params[4] as u8,
+                            )
                         }
+                        _ => unreachable!("bad rgb color"),
+                    },
+                    39 => {
+                        self.c_style.fg = crate::style::Color::default();
                     }
-                    39 => { self.c_style.fg = crate::style::Color::default(); }
                     // set background
-                    48 => {
-                        match params[1] {
-                            5 => self.c_style.bg = crate::style::Color::Indexed(params[2] as u8),
-                            2 => self.c_style.bg = crate::style::Color::Rgb(params[2] as u8, params[3] as u8, params[4] as u8),
-                            _ => unreachable!("bad rgb color")
+                    48 => match params[1] {
+                        5 => self.c_style.bg = crate::style::Color::Indexed(params[2] as u8),
+                        2 => {
+                            self.c_style.bg = crate::style::Color::Rgb(
+                                params[2] as u8,
+                                params[3] as u8,
+                                params[4] as u8,
+                            )
                         }
-
+                        _ => unreachable!("bad rgb color"),
+                    },
+                    49 => {
+                        self.c_style.bg = crate::style::Color::default();
                     }
-                    49 => { self.c_style.bg = crate::style::Color::default(); }
-                    90..=97
-                        | 100..=107
-                        | 30..=37
-                        | 40..=47 => { self.c_style.set_color_3bits(params[0] as usize) }
+                    90..=97 | 100..=107 | 30..=37 | 40..=47 => {
+                        self.c_style.set_color_3bits(params[0] as usize)
+                    }
                     value => unimplemented!("unimplemented color: {}", value),
                 }
-            },
+            }
             ('r', None) => {
                 let top = next_param_or(1) as usize;
-                let bottom =
-                    params_iter.next().map(|param| param[0] as usize).filter(|&param| param != 0);
+                let bottom = params_iter
+                    .next()
+                    .map(|param| param[0] as usize)
+                    .filter(|&param| param != 0);
 
                 self.set_scroll_range(top, bottom);
-            },
-            (c, intermediates) => debug!("[unhandled csi dispatch] char={}, intermediates={:?}", c as char, intermediates),
+            }
+            (c, intermediates) => debug!(
+                "[unhandled csi dispatch] char={}, intermediates={:?}",
+                c as char, intermediates
+            ),
         }
     }
 
@@ -489,13 +548,13 @@ impl<B: Backend> vte::Perform for Terminal<B> {
             (b'E', None) => {
                 self.linefeed();
                 self.carriage_return();
-            },
+            }
             //(b'H', None) => self.handler.set_horizontal_tabstop(),
             (b'M', None) => self.reverse_index(),
             //(b'Z', None) => self.handler.identify_terminal(self.writer, None),
             //(b'c', None) => self.handler.reset_state(),
             //(b'0', intermediate) => {
-                //configure_charset!(StandardCharset::SpecialCharacterAndLineDrawing, intermediate)
+            //configure_charset!(StandardCharset::SpecialCharacterAndLineDrawing, intermediate)
             //},
             //(b'7', None) => self.handler.save_cursor_position(),
             //(b'8', Some(b'#')) => self.handler.decaln(),
@@ -504,14 +563,16 @@ impl<B: Backend> vte::Perform for Terminal<B> {
             //(b'>', None) => self.handler.unset_keypad_application_mode(),
             //// String terminator, do nothing (parser handles as string terminator).
             //(b'\\', None) => (),
-            (c, intermediates) => debug!("[unhandled esc dispatch] char={}, intermediates={:?}", c as char, intermediates),
+            (c, intermediates) => debug!(
+                "[unhandled esc dispatch] char={}, intermediates={:?}",
+                c as char, intermediates
+            ),
         }
     }
 }
 
-
 // from allacritty
-#[allow(non_snake_case)]
+#[allow(non_snake_case, dead_code)]
 pub mod C0 {
     /// Null filler, terminal should ignore this character.
     pub const NUL: u8 = 0x00;
