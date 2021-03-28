@@ -41,8 +41,8 @@ impl Host {
                 let mut backend = TermionBackend::new(stdout);
                 backend.clear().await?;
 
-                //let rect = Rect::new(master_winsize.ws_col as usize / 2 - cols/2, master_winsize.ws_row as usize / 2 - rows/2, cols, rows);
-                let rect = Rect::new(0, 0, cols, rows);
+                let rect = Rect::new(master_winsize.ws_col as usize / 2 - cols/2, master_winsize.ws_row as usize / 2 - rows/2, cols, rows);
+                //let rect = Rect::new(0, 0, cols, rows);
                 let terminal = Terminal::new(rect, backend);
 
                 let parser = vte::Parser::new();

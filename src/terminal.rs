@@ -17,6 +17,7 @@ struct Buffer {
 impl Buffer {
 
     pub fn new(rect: Rect) -> Self {
+        eprintln!("buflen: {}", rect.width * rect.height);
         let current = vec![Cell::default(); (rect.width * rect.height) as usize];
         let previous = current.clone();
         Self {
@@ -133,7 +134,7 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn index_of(&self, x: usize, y: usize) -> usize {
-        debug!("getting position ({}, {})", x, y);
+        debug!("getting position ({}, {}), width = {}, height = {}", x, y, self.rect.width, self.rect.height);
         (y * self.rect.width + x) as usize
     }
 
@@ -185,7 +186,6 @@ impl<B: Backend> Terminal<B> {
         let to_insert_start = self.current_line_index();
         let amount = n * self.width();
         self.buffer.splice(to_insert_start..to_insert_start, (0..amount).map(|_| Cell::default()));
-
     }
 
     fn delete_lines(&mut self, num: usize) {
@@ -258,17 +258,18 @@ impl<B: Backend> Terminal<B> {
     }
 
     fn inc_row(&mut self) {
-        debug!("inc row");
-        if self.c_row == self.scroll_range.end {
+        debug!("inc row, c_row: {}, range_end: {}", self.c_row, self.scroll_range.end);
+        if self.c_row < self.scroll_range.end - 1 {
+            self.c_row += 1;
+        } else {
+            debug!("here");
             //row remains the same but the viewport is shifted up, ie rmove the first line
             let width = self.width();
-            let start = (self.scroll_range.start - 1) * width;
+            let start = (self.scroll_range.start) * width;
             let end = (self.scroll_range.end - 1) * width;
+            debug!("width: {}, start: {}, end: {}", width, start, end);
             self.buffer.drain(start..start + width);
             self.buffer.splice(end..end, (0..width).map(|_| Cell::default()));
-            //println!("buffer_len: {}", self.buffer.len());
-        } else {
-            self.c_row += 1;
         }
     }
 
