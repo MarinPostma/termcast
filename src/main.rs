@@ -2,9 +2,11 @@
 extern crate bitflags;
 
 mod backends;
+mod buffer;
 mod cell;
 mod host;
 mod layout;
+mod network;
 mod style;
 mod terminal;
 
