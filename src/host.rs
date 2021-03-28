@@ -26,8 +26,8 @@ pub struct Host {
 }
 
 impl Host {
-    pub async fn new(cols: u16, rows: u16) -> Result<Self> {
-        let winsize = Winsize { ws_row: rows, ws_col: cols, ws_xpixel: 0,  ws_ypixel: 0 };
+    pub async fn new(cols: usize, rows: usize) -> Result<Self> {
+        let winsize = Winsize { ws_row: rows as u16, ws_col: cols as u16, ws_xpixel: 0,  ws_ypixel: 0 };
         let pty_fork_result = forkpty(Some(&winsize), None)?;
         let master_fd = pty_fork_result.master;
         let master = AsyncFd::try_from(master_fd)?;
@@ -41,7 +41,8 @@ impl Host {
                 let mut backend = TermionBackend::new(stdout);
                 backend.clear().await?;
 
-                let rect = Rect::new(master_winsize.ws_col / 2 - 40, master_winsize.ws_row / 2 - 20, cols, rows);
+                //let rect = Rect::new(master_winsize.ws_col as usize / 2 - cols/2, master_winsize.ws_row as usize / 2 - rows/2, cols, rows);
+                let rect = Rect::new(0, 0, cols, rows);
                 let terminal = Terminal::new(rect, backend);
 
                 let parser = vte::Parser::new();

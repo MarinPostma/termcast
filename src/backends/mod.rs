@@ -11,7 +11,7 @@ pub use self::termion::TermionBackend;
 pub trait Backend {
     async fn draw<I>(&mut self, content: I) -> io::Result<()>
         where
-            I: Iterator<Item = (u16, u16, Cell)> + Sync + Send;
+            I: Iterator<Item = (usize, usize, Cell)> + Sync + Send;
 
     async fn clear(&mut self) -> io::Result<()>;
 
@@ -19,7 +19,7 @@ pub trait Backend {
 
     async fn show_cursor(&mut self) -> io::Result<()>;
 
-    async fn cursor_goto(&mut self, cols: u16, rows: u16) -> io::Result<()>;
+    async fn cursor_goto(&mut self, cols: usize, rows: usize) -> io::Result<()>;
 
     async fn flush(&mut self) -> io::Result<()>;
 }
